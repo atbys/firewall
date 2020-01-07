@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	device       string = "\\Device\\NPF_{5DDB35C7-6EDB-4D70-B22F-F02DA32DFEEA}"
+	device       string = "\\Device\\NPF_{1BE3DB0D-7151-42A4-8A16-A8C06AA612E4}"
 	snapshot_len int32  = 1024
 	promiscuous  bool   = false
 	err          error
@@ -46,17 +46,8 @@ func main() {
 		TTL:     3,
 		//Protocol: layers.IPProtocolTCP,
 		SrcIP: net.IP{192, 168, 56, 1},
-		DstIP: net.IP{8, 8, 8, 7},
+		DstIP: net.IP{10, 0, 2, 1},
 	}
-
-	buffer = gopacket.NewSerializeBuffer()
-	gopacket.SerializeLayers(buffer, options,
-		&eth,
-		&ip,
-		//&tcpLayer,
-		//gopacket.Payload(rawBytes),
-	)
-	outgoingPacket := buffer.Bytes()
 
 	// Open device
 	handle, err = pcap.OpenLive(device, snapshot_len, promiscuous, timeout)
@@ -65,8 +56,25 @@ func main() {
 	}
 	defer handle.Close()
 
-	err = handle.WritePacketData(outgoingPacket)
-	if err != nil {
-		log.Fatal(err)
+	for c := 0; c < 3; c++ {
+		for i := 1; i < 254; i++ {
+			for j := 2; j < 5; j++ {
+				ip.DstIP = net.IP{10, 0, byte(j), byte(i)}
+				buffer = gopacket.NewSerializeBuffer()
+				gopacket.SerializeLayers(buffer, options,
+					&eth,
+					&ip,
+					//&tcpLayer,
+					//gopacket.Payload(rawBytes),
+				)
+				outgoingPacket := buffer.Bytes()
+
+				err = handle.WritePacketData(outgoingPacket)
+				if err != nil {
+					log.Fatal(err)
+				}
+				time.Sleep(100 * time.Millisecond)
+			}
+		}
 	}
 }

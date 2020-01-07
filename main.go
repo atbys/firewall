@@ -5,6 +5,7 @@ import (
 	"log"
 	"net"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/gopacket/layers"
@@ -25,7 +26,7 @@ var (
 	handle_wifi  *pcap.Handle
 	handle_wire  *pcap.Handle
 
-	closeList map[string]bool
+	closeList sync.Map
 )
 
 func handleConnection(conn *net.TCPConn) {
@@ -56,13 +57,16 @@ func handleConnection(conn *net.TCPConn) {
 
 		out := ""
 		if command == "close" {
-			closeList[strings.TrimSpace(addr)] = true
+			//closeList[strings.TrimSpace(addr)] = true
+			closeList.Store(strings.TrimSpace(addr), true)
 			out = fmt.Sprintf("Closed: %s", addr)
 
 		} else if command == "open" {
-			_, ok := closeList[strings.TrimSpace(addr)]
+			//_, ok := closeList[strings.TrimSpace(addr)]
+			_, ok := closeList.Load(strings.TrimSpace(addr))
 			if ok {
-				delete(closeList, strings.TrimSpace(addr))
+				//delete(closeList, strings.TrimSpace(addr))
+				closeList.Delete(strings.TrimSpace(addr))
 				out = fmt.Sprintf("Opened: %s", addr)
 			}
 
@@ -96,8 +100,7 @@ func handleListener(l *net.TCPListener) error {
 }
 
 func main() {
-	closeList = make(map[string]bool, 1024)
-	closeList["8.8.8.8"] = true
+	closeList = sync.Map{}
 	go func() {
 		// Open device
 		handle_wifi, err = pcap.OpenLive(device_wifi, snapshot_len, promiscuous, timeout)
@@ -122,7 +125,7 @@ func main() {
 			}
 			ip := ipLayer.(*layers.IPv4)
 			dstIP := ip.DstIP.String()
-			if _, ok := closeList[dstIP]; ok {
+			if _, ok := closeList.Load(dstIP); ok {
 				continue
 			}
 
@@ -131,11 +134,11 @@ func main() {
 				continue
 			}
 			eth := ethLayer.(*layers.Ethernet)
-			eth.SrcMAC, err = net.ParseMAC("08-00-27-c2-b1-86")
+			eth.SrcMAC, err = net.ParseMAC("90-e2-ba-2a-6f-85")
 			if err != nil {
 				continue
 			}
-			eth.DstMAC, err = net.ParseMAC("00-00-00-00-00-00") //router's MAC
+			eth.DstMAC, err = net.ParseMAC("5c-45-27-39-05-81") //router's MAC
 			if err != nil {
 				continue
 			}
@@ -153,7 +156,7 @@ func main() {
 			fmt.Println(buffer.Bytes())
 		}
 	}()
-	tcpAddr, err := net.ResolveTCPAddr("tcp", "192.168.56.101:12345")
+	tcpAddr, err := net.ResolveTCPAddr("tcp", "192.168.1.101:12345")
 	if err != nil {
 		log.Println("ResolveTCPAddr", err)
 		return
